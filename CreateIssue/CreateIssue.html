@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post User Story to JIRA</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>Create JIRA User Story</h1>
+    <form id="userStoryForm">
+        <label for="summary">Summary:</label>
+        <input type="text" id="summary" name="summary" required><br><br>
+        <label for="description">Description:</label>
+        <textarea id="description" name="description" required></textarea><br><br>
+        <button type="button" onclick="createUserStory()">Create User Story</button>
+    </form>
+    
+    <script>
+    function createUserStory() {
+        const summary = document.getElementById('summary').value;
+        const description = document.getElementById('description').value;
+
+        const data = {
+            fields: {
+                project: {
+                    key: "SCRUM"
+                },
+                summary: summary,
+                description: {
+                    "type": "doc",
+                    "version": 1,
+                    "content": [
+                        {
+                            "type": "paragraph",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": description
+                                }
+                            ]
+                        }
+                    ]
+                },
+                issuetype: {
+                    name: "Story"
+                }
+            }
+        };
+
+        // Example: Sending this using fetch to a PHP proxy or directly to JIRA
+        fetch('create-issue.php', {  // Or your JIRA API endpoint if directly calling
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log(data);
+            alert('User story created successfully!');
+        })
+        .catch(error => {
+            console.error('Failed:', error);
+            alert('Error: Check console for details.');
+        });
+    }
+    </script>    
+</body>
+</html>
