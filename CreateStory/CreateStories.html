@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Story Creation</title>
+<style>
+    body {
+        background-color: #121212;
+        color: white;
+        font-family: Arial, sans-serif;
+    }
+    #story {
+        padding: 10px;
+        background-color: #333;
+        color: #fff;
+        margin-bottom: 10px;
+        height: 300px;
+        overflow-y: auto;
+    }
+    #controls {
+        display: flex;
+        justify-content: space-between;
+    }
+    button {
+        flex: 1;
+        padding: 10px;
+        margin: 5px;
+    }
+    input {
+    width: calc(100% - 20px); /* Set the width of the input field to 100% minus padding */
+    padding: 10px;
+    margin: 5px;
+}
+</style>
+</head>
+<body>
+<div id="story">Initial story is loading...</div>
+<input type="text" id="userInput" placeholder="Type here to refine the story...">
+<div id="controls">
+    <button onclick="sendInput()">Send</button>
+    <button onclick="sendToJira()">Send to Jira</button>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const initialSystemPrompt = {
+        "role": "system",
+        "content": "Zum Start hast Du alle Stories des aktuellen Product Backlog erhalten: Du bist ein Product Owner mit 10 Jahren Erfahrung und unterstützt einen Kollegen im Dialog beim kontinuierlichen Schreiben einer User Story inklusive passender Akzeptanzkriterien. Bitte antworte auf jede Eingabe IMMER NUR mit einer User Story, die Du anhand der Eingabedaten weiterentwickelst. Bitte gib die Antwort in der Form { 'summary': 'Titel/Zusammenfassung hier', 'description': 'Inhalt der Story mit Akzeptanzkriterien hier' }. Bitte starte das Gespräch mit den Worten: Bitte gib' mir ein paar Stichworte, um eine neue User Story im Kontext Deines Backlog zu erstellen."
+    };
+    const storedMessages = [initialSystemPrompt]; // Start with the initial system prompt
+    localStorage.setItem('conversation', JSON.stringify(storedMessages));
+
+    fetch('getStories.php')
+    .then(response => response.json())
+    .then(data => {
+        sendToChatGPT(initialSystemPrompt.content); // Send the initial system prompt to start the conversation
+    })
+    .catch(error => {
+        console.error('Error fetching stories:', error);
+        document.getElementById('story').textContent = 'Error loading initial stories.';
+    });
+});
+
+function sendToChatGPT(input) {
+    const conversation = JSON.parse(localStorage.getItem('conversation')) || [];
+    conversation.push({ role: 'user', content: input });
+    localStorage.setItem('conversation', JSON.stringify(conversation));
+
+    fetch('proxy.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ payload: { model: 'gpt-4-turbo', messages: conversation, max_tokens: 150, temperature: 0.7 } })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const assistantResponse = data.choices[0].message.content;
+        conversation.push({ role: 'assistant', content: assistantResponse });
+        localStorage.setItem('conversation', JSON.stringify(conversation));
+        document.getElementById('story').textContent = assistantResponse;
+    })
+    .catch(error => {
+        console.error('Error communicating with ChatGPT:', error);
+        document.getElementById('story').textContent = 'Error communicating with backend.';
+    });
+}
+
+function sendInput() {
+    const userInputField = document.getElementById('userInput');
+    const userInput = userInputField.value;
+    sendToChatGPT(userInput);
+    userInputField.value = ''; // Clears the input field after sending
+}
+
+function resetConversation() {
+    localStorage.removeItem('conversation');
+    document.getElementById('story').textContent = 'Initial story is loading...';
+    sendToChatGPT("Zum Start hast Du alle Stories des aktuellen Product Backlog erhalten: Du bist ein Product Owner mit 10 Jahren Erfahrung und unterstützt einen Kollegen im Dialog beim kontinuierlichen Schreiben einer User Story inklusive passender Akzeptanzkriterien. Bitte antworte auf jede Eingabe IMMER NUR mit einer User Story, die Du anhand der Eingabedaten weiterentwickelst. Bitte gib die Antwort in der Form { 'summary': 'Titel/Zusammenfassung hier', 'description': 'Inhalt der Story mit Akzeptanzkriterien hier' }. Bitte starte das Gespräch mit den Worten: Bitte gib' mir ein paar Stichworte, um eine neue User Story im Kontext Deines Backlog zu erstellen."); // Start a new conversation with the initial system prompt
+}
+
+function sendToJira() {
+    const storyText = document.getElementById('story').textContent;
+    fetch('createJiraStory.php', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ story: storyText })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Story erfolgreich zu Jira hinzugefügt.');
+            alert('Story wurde erfolgreich hinzugefügt!');
+            resetConversation(); // Reset the conversation after sending to Jira
+        } else {
+            console.error('Fehler beim Hinzufügen der Story:', data.error);
+            alert('Fehler beim Senden der Story zu Jira.');
+        }
+    })
+    .catch(error => {
+        console.error('Kommunikationsfehler mit der API:', error);
+        alert('Fehler beim Senden der Story zu Jira.');
+    });
+}
+</script>
+</body>
+</html>
